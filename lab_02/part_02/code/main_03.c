@@ -11,7 +11,6 @@ int main(void)
     for (size_t i = 0; i < 2; ++i)
     {
         childpid[i] = fork();
-
         if (childpid[i] == -1)
         {
             perror("Can't fork.\n");
@@ -33,7 +32,7 @@ int main(void)
             printf("Parent process: PID = %d, PGRP = %d\n", getpid(), getpgrp());
         }
     }
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 2; ++i)
     {
         waitpid(childpid[i], &wstatus, WUNTRACED);
         if (WIFEXITED(wstatus))

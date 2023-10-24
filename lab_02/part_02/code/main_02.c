@@ -7,7 +7,7 @@ int main(void)
 {
     pid_t childpid[2], w;
     int wstatus;
-    for (size_t i = 0; i < 2; i++)
+    for (size_t i = 0; i < 2; ++i)
     {
         childpid[i] = fork();
         if (childpid[i] == -1)
@@ -17,18 +17,18 @@ int main(void)
         }
         else if (childpid[i] == 0)
         {
-            printf("Child process before sleep: PID = %d, PPID = %d, PGRP = %d\n", getpid(), getppid(), getpgrp());
+            printf("Child process before pause: PID = %d, PPID = %d, PGRP = %d\n", getpid(), getppid(), getpgrp());
             pause();
-            printf("\nChild process after sleep: PID = %d, PPID = %d, PGRP = %d\n", getpid(), getppid(), getpgrp());
-            exit(EXIT_SUCCESS);
+            // printf("\nChild process after pause: PID = %d, PPID = %d, PGRP = %d\n", getpid(), getppid(), getpgrp());
+            // exit(EXIT_SUCCESS);
         }
         else
         {
             printf("Parent process: PID = %d, PGRP = %d\n", getpid(), getpgrp());
         }
-    // }
-    // for (size_t i = 0; i < 2; i++)
-    // {    
+    }
+    for (size_t i = 0; i < 2; ++i)
+    {    
         w = waitpid(childpid[i], &wstatus, WUNTRACED);
         if (w == -1)
         {

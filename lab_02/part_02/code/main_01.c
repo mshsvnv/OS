@@ -5,7 +5,7 @@
 int main(void)
 {
     pid_t childpid[2];
-    for (size_t i = 0; i < 2; i++)
+    for (size_t i = 0; i < 2; ++i)
     {
         childpid[i] = fork();
         if (childpid[i] == -1)
