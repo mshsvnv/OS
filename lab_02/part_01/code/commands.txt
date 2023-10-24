@@ -1,0 +1,29 @@
+ps -al
+ps -ajx
+
+// изменение приоритета
+./app.exe
+ps -al
+renice -n 10 --pid
+ps -al
+
+// получение зомби
+./app.exe
+ps -ajx | grep app.exe
+kill потомка
+ps -ajx | grep app.exe
+
+// получение осиротевшего
+./app.exe
+ps -ajx | grep app.exe
+kill предка
+ps -ajx | grep app.exe
+
+// перенаправление
+ls -ial > ls.txt
+cat.txt
+
+// именнованный канал
+mknod pipe
+echo "hello world" > pipe
+tee < pipe
