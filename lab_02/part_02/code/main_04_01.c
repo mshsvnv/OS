@@ -16,7 +16,7 @@ int main(void)
         exit(EXIT_FAILURE);
     }
     char buf[256] = { 0 };
-    const char* messages[] = { "iiiiiii\n", "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\n" };
+    char* messages[] = { "iiiiiii\n", "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\n" };
     for (size_t i = 0; i < 2; ++i)
     {
         childpid[i] = fork();
@@ -46,14 +46,16 @@ int main(void)
             exit(EXIT_FAILURE);
         }
         if (WIFEXITED(wstatus))
-            printf("Exited, status=%d\n", WEXITSTATUS(wstatus));
+            printf("Child ID = %d; Exited, status = %d\n", w, WEXITSTATUS(wstatus));
         else if (WIFSIGNALED(wstatus))
-            printf("Killed by signal %d\n", WTERMSIG(wstatus));
+            printf("Child ID = %d; Killed by signal %d\n", w, WTERMSIG(wstatus));
         else if (WIFSTOPPED(wstatus))
-            printf("Stopped by signal %d\n", WSTOPSIG(wstatus));
+            printf("Child ID = %d; Stopped by signal %d\n", w, WSTOPSIG(wstatus));
         close(fd[1]);
-        while (read(fd[0], &ch, 1) > 0)
+        do
+        {
             printf("%c", ch);
+        } while (read(fd[0], &ch, 1) > 0);
         close(fd[0]);
     }
     printf("Repeat pipe:\n");

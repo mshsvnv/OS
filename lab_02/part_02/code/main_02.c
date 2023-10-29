@@ -36,11 +36,11 @@ int main(void)
             exit(EXIT_FAILURE);
         }
         if (WIFEXITED(wstatus))
-            printf("Exited, status=%d\n", WEXITSTATUS(wstatus));
+            printf("Child ID = %d; Exited, status = %d\n", w, WEXITSTATUS(wstatus));
         else if (WIFSIGNALED(wstatus))
-            printf("Killed by signal %d\n", WTERMSIG(wstatus));
+            printf("Child ID = %d; Killed by signal %d\n", w, WTERMSIG(wstatus));
         else if (WIFSTOPPED(wstatus))
-            printf("Stopped by signal %d\n", WSTOPSIG(wstatus));
+            printf("Child ID = %d; Stopped by signal %d\n", w, WSTOPSIG(wstatus));
     }
     return 0;
 }
