@@ -15,7 +15,6 @@ int main(void)
         perror("Can't pipe.\n");
         exit(EXIT_FAILURE);
     }
-    char buf[256] = { 0 };
     char* messages[] = { "iiiiiii\n", "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\n" };
     for (size_t i = 0; i < 2; ++i)
     {
@@ -58,9 +57,11 @@ int main(void)
         } while (read(fd[0], &ch, 1) > 0);
         close(fd[0]);
     }
-    printf("Repeat pipe:\n");
+    printf("Repeat pipe: ");
 	close(fd[1]);
-	read(fd[0], buf, strlen(buf));
-	printf("Message #%d: '%s'\n\n", 3, buf);
+    do
+    {
+        printf("%c", ch);
+    } while (read(fd[0], &ch, 1) > 0);
     return 0;
 }

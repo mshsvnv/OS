@@ -19,8 +19,6 @@ int main(void)
         {
             printf("Child process before pause: PID = %d, PPID = %d, PGRP = %d\n", getpid(), getppid(), getpgrp());
             pause();
-            // printf("\nChild process after pause: PID = %d, PPID = %d, PGRP = %d\n", getpid(), getppid(), getpgrp());
-            // exit(EXIT_SUCCESS);
         }
         else
         {

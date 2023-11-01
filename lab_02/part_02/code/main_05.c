@@ -6,7 +6,8 @@
 #include <string.h>
 #include <signal.h>
 int fl = 0;
-void sig_handler(int sig_num) {
+void sig_handler(int sig_num) 
+{
     fl = 1;
     printf("\nCatch %d\n", sig_num);
 }
@@ -27,7 +28,6 @@ int main(void)
         exit(EXIT_FAILURE);
     }
     sleep(2);
-    char buf[256] = { 0 };
     for (size_t i = 0; i < 2; ++i)
     {
         childpid[i] = fork();
@@ -45,8 +45,7 @@ int main(void)
                     message = "iiiiiii\n";
                 else    
                     message = "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\n";
-                printf("\nChild process: PID = %d, PPID = %d, PGRP = %d\n", getpid(), getppid(), getpgrp());
-                printf("Writen string: %s\n", message);
+                printf("Writen string by %d process: %s\n", getpid(), message);
                 close(fd[0]);
                 write(fd[1], message, strlen(message));
                 close(fd[1]);
@@ -56,10 +55,6 @@ int main(void)
                 printf("No message!\n");
             }
             exit(EXIT_SUCCESS);
-        }
-        else
-        {
-            printf("Parent process: PID = %d, PGRP = %d\n", getpid(), getpgrp());
         }
     }
     for (int i = 0; i < 2; ++i) {
@@ -82,9 +77,5 @@ int main(void)
         } while (read(fd[0], &ch, 1) > 0);
         close(fd[0]);
     }
-    printf("Repeat pipe:\n");
-	close(fd[1]);
-	read(fd[0], buf, strlen(buf));
-	printf("Message #%d: '%s'\n\n", 3, buf);
     return 0;
 }

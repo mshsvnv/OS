@@ -6,7 +6,7 @@ int main(void)
 {
 	int status;
     pid_t children[2];
-    char *exe[2] = { "./prog1.exe", "./prog2.exe" };
+    char* exe[2] = { "./app_01", "./app_04" };
     for (int i = 0; i < 2; i++)
     {
         if ((children[i] = fork()) == -1)

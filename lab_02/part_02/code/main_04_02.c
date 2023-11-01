@@ -15,7 +15,6 @@ int main(void)
         perror("Can't pipe.\n");
         exit(EXIT_FAILURE);
     }
-    char buf[256] = { 0 };
     for (size_t i = 0; i < 2; ++i)
     {
         childpid[i] = fork();
@@ -27,12 +26,10 @@ int main(void)
         else if (childpid[i] == 0)
         {
             char* message = NULL;
-
             if (i == 0)
                 message = "iiiiiii\n";
             else    
                 message = "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\n";
-
             printf("Child process: PID = %d, PPID = %d, PGRP = %d\n", getpid(), getppid(), getpgrp());
             close(fd[0]);
             write(fd[1], message, strlen(message));
@@ -66,7 +63,9 @@ int main(void)
     }
     printf("Repeat pipe:\n");
 	close(fd[1]);
-	read(fd[0], buf, strlen(buf));
-	printf("Message #%d: '%s'\n\n", 3, buf);
+	do
+    {
+        printf("%c", ch);
+    } while (read(fd[0], &ch, 1) > 0);
     return 0;
 }
