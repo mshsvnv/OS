@@ -22,7 +22,7 @@ int main(void)
         }
         else
         {
-            printf("Parent process: PID = %d, PGRP = %d\n", getpid(), getpgrp());
+            printf("Parent process: PID = %d, ChildID = %d, PGRP = %d\n", getpid(), children[i], getpgrp());
         }
     }
     return 0;

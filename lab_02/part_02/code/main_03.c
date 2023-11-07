@@ -22,7 +22,6 @@ int main(void)
                 perror("Can't exec.\n");
                 exit(EXIT_FAILURE);
             }
-            exit(EXIT_SUCCESS);
         }
     }
     for (int i = 0; i < 2; i++)
