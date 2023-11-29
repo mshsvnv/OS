@@ -9,27 +9,31 @@
 #include <time.h>
 
 #define BUF_SIZE 128
-#define PROD_AMT 2
-#define CONS_AMT 2
+#define CNT_PROD 2
+#define CNT_CONS 2
 
-#define DEC -1
-#define INC 1
+#define P -1
+#define V 1
 
 #define SB 0
 #define SE 1
 #define SF 2
 
-struct sembuf prod_start[] = {{SE, DEC, 0}, {SB, DEC, 0}};
-struct sembuf prod_stop[]  = {{SB, INC, 0}, {SF, INC, 0}};
-struct sembuf cons_start[] = {{SF, DEC, 0}, {SB, DEC, 0}};
-struct sembuf cons_stop[]  = {{SB, INC, 0}, {SE, INC, 0}};
+struct sembuf prod_start[] = {{SE, P, 0}, {SB, P, 0}};
+struct sembuf prod_stop[]  = {{SB, V, 0}, {SF, V, 0}};
+struct sembuf cons_start[] = {{SF, P, 0}, {SB, P, 0}};
+struct sembuf cons_stop[]  = {{SB, V, 0}, {SE, V, 0}};
 
 int flag = 1;
 
 void sig_handler(int sig_num)
 {
-    flag = 0;
-    printf("Signal %d was caught by %d\n", sig_num, getpid());
+    if (getppid() == getpgrp())
+    {
+        flag = 0;
+  
+        printf("Process %d catch signal %d\n", getpid(), sig_num);
+    }
 }
 
 void producer(char **cur_prod, char *cur_symb, int semid)
@@ -73,7 +77,7 @@ void consumer(char **cur_cons, int semid)
             exit(1);
         }
         printf("Consumer %d get \"%c\"\n", getpid(), **cur_cons);
-        ++(*cur_cons);
+        // ++(*cur_cons);
         int semop_v = semop(semid, cons_stop, 2);
         if (semop_v == -1)
         {
@@ -86,7 +90,7 @@ void consumer(char **cur_cons, int semid)
 
 int main()
 {
-    pid_t childpid[PROD_AMT + CONS_AMT], pidw;
+    pid_t childpid[CNT_PROD + CNT_CONS], pidw;
     int wstatus;
     int shmid, semid;
     int perms = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
@@ -99,6 +103,7 @@ int main()
         perror("Can't signal.");
         exit(1);
     }
+
     // разделяемая память
     shmid = shmget(100, BUF_SIZE, IPC_CREAT | perms);
     if (shmid == -1)
@@ -106,12 +111,14 @@ int main()
         perror("Can't shmget.");
         exit(1);
     }
+
     char *shm_addr = (char *)shmat(shmid, 0, 0);
     if (shm_addr == (char *)-1)
     {
         perror("Can't shmat.");
         exit(1);
     }
+
     // семафоры
     semid = semget(100, 3, IPC_CREAT | perms);
     if (semid == -1)
@@ -127,6 +134,7 @@ int main()
         perror("Can't semctl.");
         exit(1);
     }
+
     // инициализация
     prod = (char **)shm_addr;
     cons = prod + 1;
@@ -134,10 +142,16 @@ int main()
     *symb = 'a';
     *prod = symb + 1;
     *cons = symb + 1;
+
     // производители
-    for (int i = 0; i < PROD_AMT; ++i)
+    for (int i = 0; i < CNT_PROD; ++i)
     {
         childpid[i] = fork();
+    if (shmdt(shm_addr) == -1)
+    {
+        perror("Can't shmdt.");
+        exit(1);
+
         if (childpid[i] == -1)
         {
             perror("Can't fork.");
@@ -148,8 +162,9 @@ int main()
             producer(prod, symb, semid);
         }
     }
+
     // потребители
-    for (int i = PROD_AMT; i < PROD_AMT + CONS_AMT; ++i)
+    for (int i = CNT_PROD; i < CNT_PROD + CNT_CONS; ++i)
     {
         childpid[i] = fork();
         if (childpid[i] == -1)
@@ -162,14 +177,17 @@ int main()
             consumer(cons, semid);
         }
     }
-    for (int i = 0; i < (PROD_AMT + CONS_AMT); ++i)
+
+    for (int i = 0; i < (CNT_PROD + CNT_CONS); ++i)
     {
         pidw = waitpid(childpid[i], &wstatus, WUNTRACED);
+        
         if (pidw == -1)
         {
             perror("Can't waitpid.");
             exit(1);
         }
+
         if (WIFEXITED(wstatus))
             printf("Exited %d, status=%d\n", pidw, WEXITSTATUS(wstatus));
         else if (WIFSIGNALED(wstatus))
@@ -177,14 +195,16 @@ int main()
         else if (WIFSTOPPED(wstatus))
             printf("Stopped %d by signal %d\n", pidw, WSTOPSIG(wstatus));
     }
-    if (shmdt(shm_addr) == -1)
-    {
-        perror("Can't shmdt.");
-        exit(1);
-    }
+
     if (semctl(semid, 1, IPC_RMID, NULL) == -1)
     {
         perror("Can't semctl.\n");
+        exit(1);
+    }
+
+    if (shmdt(shm_addr) == -1)
+    {
+        perror("Can't shmdt.");
         exit(1);
     }
     if (shmctl(shmid, IPC_RMID, NULL) == -1)
