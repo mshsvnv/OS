@@ -69,7 +69,7 @@ void consumer(char **cur_cons, int semid)
     srand(time(NULL));
     while (flag)
     {
-        sleep(rand() % 3 + 1);
+        sleep(rand() % 3);
         int semop_p = semop(semid, cons_start, 2);
         if (semop_p == -1)
         {
@@ -77,7 +77,7 @@ void consumer(char **cur_cons, int semid)
             exit(1);
         }
         printf("Consumer %d get \"%c\"\n", getpid(), **cur_cons);
-        // ++(*cur_cons);
+        ++(*cur_cons);
         int semop_v = semop(semid, cons_stop, 2);
         if (semop_v == -1)
         {
@@ -126,12 +126,19 @@ int main()
         perror("Can't semget.");
         exit(1);
     }
-    int sb = semctl(semid, SB, SETVAL, 1);
-    int se = semctl(semid, SE, SETVAL, BUF_SIZE);
-    int sf = semctl(semid, SF, SETVAL, 0);
-    if (sb == -1 || se == -1 || sf == -1)
+    if (semctl(semid, SB, SETVAL, 1) == -1)
     {
-        perror("Can't semctl.");
+        perror("Can't semctl (SB)");
+        exit(1);
+    }
+    if (semctl(semid, SE, SETVAL, BUF_SIZE) == -1) 
+    {
+        perror("Can't semctl (SE)");
+        exit(1);
+    }
+    if (semctl(semid, SF, SETVAL, 0) == -1)
+    {
+        perror("Can't semctl (SF)");
         exit(1);
     }
 
@@ -147,11 +154,7 @@ int main()
     for (int i = 0; i < CNT_PROD; ++i)
     {
         childpid[i] = fork();
-    if (shmdt(shm_addr) == -1)
-    {
-        perror("Can't shmdt.");
-        exit(1);
-
+    
         if (childpid[i] == -1)
         {
             perror("Can't fork.");
@@ -167,6 +170,7 @@ int main()
     for (int i = CNT_PROD; i < CNT_PROD + CNT_CONS; ++i)
     {
         childpid[i] = fork();
+
         if (childpid[i] == -1)
         {
             perror("Can't fork.");
@@ -207,10 +211,12 @@ int main()
         perror("Can't shmdt.");
         exit(1);
     }
+
     if (shmctl(shmid, IPC_RMID, NULL) == -1)
     {
         perror("Can't shmctl.\n");
         exit(1);
     }
+
     return 0;
 }

@@ -9,7 +9,7 @@ int fl = 0;
 void sig_handler(int sig_num) 
 {
     fl = 1;
-    printf("\nCatch %d\n", sig_num);
+    printf("\nSignal %d was caught by %d\n", sig_num, getpid());
 }
 int main(void)
 {

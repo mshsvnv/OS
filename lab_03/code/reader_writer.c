@@ -8,12 +8,6 @@
 #include <unistd.h>
 #include <time.h>
 
-// #define ACTIVE_READERSS 0
-// #define WRITE_QUEUE    1
-// #define READ_QUEUE     2
-// #define ACTIVE_WRITER  3
-// #define BIN_WRITING     4
-
 #define ACTIVE_READERS 0
 #define ACTIVE_WRITER  1
 #define WRITE_QUEUE    2
@@ -28,16 +22,16 @@
 
 struct sembuf start_read[] = 
 {
-  {READ_QUEUE, V, 0},          // добавляем ждущего читателя 
-  {BIN_WRITING, 0, 0},         // проверяем на активного писателя
-  {WRITE_QUEUE, 0, 0},         // проверяем на ждущих писателей
-  {ACTIVE_READERS, V, 0},      // добавляем активного читателя
-  {READ_QUEUE, P, 0}           // удялем из очереди читателей
+    {READ_QUEUE, V, 0},          // добавляем ждущего читателя 
+    {BIN_WRITING, 0, 0},         // проверяем на активного писателя
+    {WRITE_QUEUE, 0, 0},         // проверяем на ждущих писателей
+    {ACTIVE_READERS, V, 0},      // добавляем активного читателя
+    {READ_QUEUE, P, 0}           // удялем из очереди читателей
 };
 
 struct sembuf stop_read[] = 
 {
-  {ACTIVE_READERS, P, 0}       // уменьшаем активных чичтателей
+  {ACTIVE_READERS, P, 0}       // уменьшаем активных читателей
 };
 
 struct sembuf start_write[] = 
@@ -64,7 +58,7 @@ void sig_handler(int sig_num)
     {
         flag = 0;
   
-        printf("Process %d catch signal %d\n", getpid(), sig_num);
+        printf("\nProcess %d catch signal %d\n", getpid(), sig_num);
     }
 }
 
@@ -81,7 +75,7 @@ void writer(int *shared_num, int semid)
             exit(1);
         }
         ++(*shared_num);
-        printf("Writer incremented shared_num = \'%d\'\n", *shared_num);
+        printf("Writer %d incremented shared_num = \'%d\'\n", getpid(), *shared_num);
         int semop_v = semop(semid, stop_write, 2);
         if (semop_v == -1)
         {
@@ -104,7 +98,7 @@ void reader(int *shared_num, int semid)
             perror("Can't semop (start_read)");
             exit(1);
         }
-        printf("Reader took shared_num = \'%d\'\n", *shared_num);
+        printf("Reader %d took shared_num = \'%d\'\n", getpid(), *shared_num);
         int semop_v = semop(semid, stop_read, 1);
         if (semop_v == -1)
         {
