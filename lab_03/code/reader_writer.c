@@ -22,32 +22,32 @@
 
 struct sembuf start_read[] = 
 {
-    {READ_QUEUE, V, 0},          // добавляем ждущего читателя 
-    {BIN_WRITING, 0, 0},         // проверяем на активного писателя
-    {WRITE_QUEUE, 0, 0},         // проверяем на ждущих писателей
-    {ACTIVE_READERS, V, 0},      // добавляем активного читателя
-    {READ_QUEUE, P, 0}           // удялем из очереди читателей
+    {READ_QUEUE, V, 0},           
+    {BIN_WRITING, 0, 0},         
+    {WRITE_QUEUE, 0, 0},         
+    {ACTIVE_READERS, V, 0},      
+    {READ_QUEUE, P, 0}           
 };
 
 struct sembuf stop_read[] = 
 {
-  {ACTIVE_READERS, P, 0}       // уменьшаем активных читателей
+    {ACTIVE_READERS, P, 0}       
 };
 
 struct sembuf start_write[] = 
 {
-  {WRITE_QUEUE, V, 0},          // добавляем ждущего писателя
-  {ACTIVE_READERS, 0, 0},       // проверяем на активных читателей
-  {BIN_WRITING, 0, 0},          // проверяем на активного писателя
-  {ACTIVE_WRITER, P, 0},        // есть активный писатель
-  {BIN_WRITING, V, 0},          // писатель пишет
-  {WRITE_QUEUE, P, 0}           // удаляем из очереди ждущего писателя
+    {WRITE_QUEUE, V, 0},          
+    {ACTIVE_READERS, 0, 0},       
+    {BIN_WRITING, 0, 0},          
+    {ACTIVE_WRITER, P, 0},        
+    {BIN_WRITING, V, 0},          
+    {WRITE_QUEUE, P, 0}           
 };
 
 struct sembuf stop_write[] = 
 {
-  {BIN_WRITING, P, 0},           // писатель перестал писать
-  {ACTIVE_WRITER, V, 0}          // освобождение активных писателей
+    {BIN_WRITING, P, 0},           
+    {ACTIVE_WRITER, V, 0}          
 };
 
 int flag = 1;
@@ -75,7 +75,7 @@ void writer(int *shared_num, int semid)
             exit(1);
         }
         ++(*shared_num);
-        printf("Writer %d incremented shared_num = \'%d\'\n", getpid(), *shared_num);
+        printf("Writer %d increment shared_num = \'%d\'\n", getpid(), *shared_num);
         int semop_v = semop(semid, stop_write, 2);
         if (semop_v == -1)
         {
@@ -98,7 +98,7 @@ void reader(int *shared_num, int semid)
             perror("Can't semop (start_read)");
             exit(1);
         }
-        printf("Reader %d took shared_num = \'%d\'\n", getpid(), *shared_num);
+        printf("Reader %d get shared_num = \'%d\'\n", getpid(), *shared_num);
         int semop_v = semop(semid, stop_read, 1);
         if (semop_v == -1)
         {
