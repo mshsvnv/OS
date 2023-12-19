@@ -22,10 +22,10 @@ int lockfile(int fd)
 {
     struct flock fl;
 
-    fl.l_type = F_WRLCK; // блокировка на запись
-    fl.l_start = 0; // смещение относительно WHENCE, начало блокировки
-    fl.l_whence = SEEK_SET; // курсор на начало
-    fl.l_len = 0; // длина блокируемого участка
+    fl.l_type = F_WRLCK; 
+    fl.l_start = 0; 
+    fl.l_whence = SEEK_SET; 
+    fl.l_len = 0; 
 
     return fcntl(fd, F_SETLK, &fl);
 }
@@ -69,34 +69,22 @@ void daemonize(const char *cmd)
     struct rlimit rl;
     struct sigaction sa;
 
-    /*
-    * 1. Сбросить маску режима создания файла.
-    */	
     umask(0);
     
-    /*
-    * Получить максимально возможный номер дескриптора файла.
-    */
     if (getrlimit(RLIMIT_NOFILE, &rl) < 0)
     {
         printf("%s: невозможно получить максимальный номер дескриптора ", cmd);
     }
     
-    /*
-    * 2. Стать лидером нового сеанса, чтобы утратить управляющий терминал.
-    */
     if ((pid = fork()) < 0)
     {
         printf("%s: ошибка вызова функции fork", cmd);
     }
-    else if (pid > 0) /* родительский процесс */
+    else if (pid > 0) 
     {
         exit(0);
     }
 
-    /*
-    * Обеспечить невозможность обретения управляющего терминала в будущем.
-    */
     sa.sa_handler = SIG_IGN;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
@@ -112,18 +100,11 @@ void daemonize(const char *cmd)
     	exit(1);
     }
     
-    /*
-    * 4. Назначить корневой каталог текущим рабочим каталогом,
-    * чтобы впоследствии можно было отмонтировать файловую систему.
-    */
     if (chdir("/") < 0)
     {
         printf("%s: невозможно сделать текущим рабочим каталогом", cmd);
     }
     
-    /*
-    * 5. Закрыть все открытые файловые дескрипторы.
-    */
     if (rl.rlim_max == RLIM_INFINITY)
     {
         rl.rlim_max = 1024;
@@ -133,16 +114,10 @@ void daemonize(const char *cmd)
         close(i);
     }
     
-     /*
-    * Присоединить файловые дескрипторы 0, 1 и 2 к /dev/null.
-    */
     fd0 = open("/dev/null", O_RDWR);
     fd1 = dup(0);
     fd2 = dup(0);
-    
-     /*
-    * 6. Инициализировать файл журнала.
-    */
+
     openlog(cmd, LOG_CONS, LOG_DAEMON);
 
     if (fd0 != 0 || fd1 != 1 || fd2 != 2)
@@ -200,24 +175,15 @@ int main(int argc, char *argv[])
     {
         cmd++;
     }
-    
-     /*
-    * Перейти в режим демона
-    */
+  
     daemonize(cmd);
     
-     /*
-    * Убедиться в том, что ранее не была запущенв другая копия демона
-    */
     if (already_running())
     {
         syslog(LOG_ERR, "демон уже запущен");
         exit(1);
     }
     
-     /*
-    * Восстановить действия по умолчанию для сигнала SIGHUP и заблокировать все сигналы
-    */
     sa.sa_handler = SIG_DFL;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
@@ -231,10 +197,7 @@ int main(int argc, char *argv[])
     {
         printf("ошибка выполнения операции SIG_BLOCK");
     }
-    
-     /*
-    * Создать поток, который будет заниматься обработкой SIGHUP и SIGTERM
-    */
+  
     pthread_create(&tid, NULL, thr_fn, NULL);
     if (tid == -1)
     {
