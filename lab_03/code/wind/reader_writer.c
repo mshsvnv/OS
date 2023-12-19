@@ -1,159 +1,213 @@
 #include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <process.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <process.h>
+#include <time.h>
+#include <stdbool.h>
+#include <signal.h>
 
-#define READERS 4
-#define WRITERS 3
+#define READERS_NUM 5
+#define WRITERS_NUM 3
 
-HANDLE canRead;
-HANDLE canWrite;
+HANDLE can_read;
+HANDLE can_write;
 HANDLE mutex;
 
-LONG activeReaders = 0;
-LONG waitingReaders = 0;
-LONG activeWriter = FALSE;
-LONG waitingWriters = 0;
+HANDLE readers_threads[READERS_NUM];
+HANDLE writers_threads[WRITERS_NUM];
+
+int readers_id[READERS_NUM];
+int writers_id[WRITERS_NUM];
+
+long waiting_readers = 0;
+long active_readers = 0;
+
+long waiting_writers = 0;
+long active_writer = false;
 
 int value = 0;
+int flag = 1;
 
-void startRead()
+void sig_handler(int sig_num)
 {
-    InterlockedIncrement(&waitingReaders);
-
-    if (waitingWriters || WaitForSingleObject(canWrite, 0) == WAIT_OBJECT_0)
-        WaitForSingleObject(canRead, INFINITE);
-
-    WaitForSingleObject(mutex, INFINITE);
-    SetEvent(canRead);
-    InterlockedDecrement(&waitingReaders);
-    InterlockedIncrement(&activeReaders);
-    ReleaseMutex(mutex);
+    flag = 0;
+    printf("\npid %d: catch signal %d\n", _getpid(), sig_num);
 }
 
-void stopRead()
+void start_read()
 {
-    InterlockedDecrement(&activeReaders);
-
-    if (activeReaders == 0) 
-    SetEvent(canWrite);
-}
-
-void startWrite()
-{
-    InterlockedIncrement(&waitingWriters);
-
-    if (activeWriter || WaitForSingleObject(canRead, 0) == WAIT_OBJECT_0)
-        WaitForSingleObject(canWrite, INFINITE);
+    InterlockedIncrement(&waiting_readers);
+    if (active_writer || waiting_writers > 0)
+    {
+        WaitForSingleObject(can_read, INFINITE);
+    }
     
     WaitForSingleObject(mutex, INFINITE);
-    InterlockedDecrement(&waitingWriters);
-    InterlockedExchange(&activeWriter, TRUE);
+    InterlockedDecrement(&waiting_readers);
+    InterlockedIncrement(&active_readers);
+    SetEvent(can_read);
     ReleaseMutex(mutex);
 }
 
-void stopWrite()
+void stop_read()
 {
-    ResetEvent(canWrite);
-    InterlockedExchange(&activeWriter, FALSE);
+    InterlockedDecrement(&active_readers);
 
-    if (waitingReaders > 0)
-        SetEvent(canRead);
+    if (active_readers == 0)
+    {
+        SetEvent(can_write);
+    }
+}
+
+void start_write()
+{
+    InterlockedIncrement(&waiting_writers);
+    if (active_readers > 0 || active_writer)
+    {
+        WaitForSingleObject(can_write, INFINITE);
+    }
+  
+    InterlockedIncrement(&active_writer);
+    InterlockedDecrement(&waiting_writers);
+}
+
+void stop_write()
+{
+    ResetEvent(can_write);
+    InterlockedDecrement(&active_writer);
+    if (waiting_readers > 0)
+    {
+        SetEvent(can_read);
+    }
     else
-        SetEvent(canWrite);
-}
-
-void LogExit(const char *msg)
-{
-    perror(msg);
-    ExitProcess(EXIT_SUCCESS);
-}
-
-DWORD Reader(PVOID param)
-{
-    srand(GetCurrentThreadId());
-
-    for (int i = 0; i < 6; i++)
     {
-        Sleep(rand() % 200 + 100);
-        startRead();
-        printf("Reader have got = %d\n", value);
-        stopRead();
+        SetEvent(can_write);
     }
-    return EXIT_SUCCESS;
 }
 
-DWORD Writer(PVOID param) 
+
+DWORD WINAPI reader(const LPVOID parametr)
 {
+    int id = *(int*)parametr;
+
     srand(GetCurrentThreadId());
-    
-    for (int i = 0; i < 6; i++)
+    while(flag)
     {
-        Sleep(rand() % 500);
-        startWrite();
+        int sleep_time = (rand() % 1000);
+        Sleep(sleep_time);
+
+        start_read();
+        
+        printf("Reader(%d) %2d read  %2d\n", GetCurrentThreadId(), id, value);
+        
+        stop_read();
+    }
+
+    return 0;
+}
+
+
+DWORD WINAPI writer(const LPVOID parametr)
+{
+    int id = *(int*)parametr;
+
+    srand(GetCurrentThreadId());
+    while(flag)
+    {
+        int sleep_time = (rand() % 1000);
+        Sleep(sleep_time);
+
+        start_write();
+    
         value++;
-        printf("Writer have incremented = %d\n", value);
-        stopWrite();
+        printf("Writer(%d) %2d write %2d\n", GetCurrentThreadId(), id, value);
+ 
+        stop_write();
     }
-    return EXIT_SUCCESS;
+
+    return 0;
 }
 
-int main(void) 
+int main(void)
 {
-    setbuf(stdout, NULL);
-
-    DWORD thid[WRITERS + READERS];
-    HANDLE pthread[WRITERS + READERS];
-
-    if ((canRead = CreateEvent(NULL, FALSE, FALSE, NULL)) == NULL)
-        LogExit("Can't createEvent");
-    
-    if ((canWrite = CreateEvent(NULL, TRUE, FALSE, NULL)) == NULL)
-        LogExit("Can't t createEvent");
-    
-    if ((mutex = CreateMutex(NULL, 0, NULL)) == NULL)
-        LogExit("Can't  createMutex");
-
-    for (int i = 0; i < WRITERS; i++)
+    printf("pid %d\n", _getpid());
+    if (signal(SIGINT, sig_handler) == SIG_ERR)
     {
-        pthread[i] = CreateThread(NULL, 0, Writer, NULL, 0, &thid[i]);
-        
-        if (pthread[i] == NULL)
-            LogExit("Can't  createThread");
-    }
-    for (int i = WRITERS; i < WRITERS + READERS; i++)
-    {
-        pthread[i] = CreateThread(NULL, 0, Reader, NULL, 0, &thid[i]);
-        
-        if (pthread[i] == NULL)
-            LogExit("Can't  createThread");
+        perror("signal");
+        exit(1);
     }
 
-    for (int i = 0; i < WRITERS + READERS; i++) 
+    mutex = CreateMutex(NULL, FALSE, NULL);
+    if (mutex == NULL)
     {
-        DWORD dw = WaitForSingleObject(pthread[i], INFINITE);
-        
-        switch (dw) 
+        perror("CreateMutex");
+        exit(1);
+    }
+
+    can_write = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (can_write == NULL)
+    {
+        perror("CreateEvent");
+        exit(1);
+    }
+
+    can_read = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (can_read == NULL)
+    {
+        perror("CreateEvent");
+        exit(1);
+    }
+
+    for (int i = 0; i < READERS_NUM; i++)
+    {
+        readers_id[i] = i;
+        readers_threads[i] = CreateThread(NULL, 0, reader, readers_id + i, 0, NULL);
+
+        if (readers_threads[i] == NULL)
         {
-            case WAIT_OBJECT_0:
-            printf("Thread %d finished\n", thid[i]);
-            break;
-            case WAIT_TIMEOUT:
-            printf("WaitThread timeout %d\n", dw);
-            break;
-            case WAIT_FAILED:
-            printf("WaitThread failed %d\n", dw);
-            break;
-            default:
-            printf("Unknown %d\n", dw);
-            break;
+            perror("CreateEvent");
+            exit(1);
         }
     }
 
-    CloseHandle(canRead);
-    CloseHandle(canWrite);
+    for (int i = 0; i < WRITERS_NUM; i++)
+    {
+        writers_id[i] = i;
+        writers_threads[i] = CreateThread(NULL, 0, writer, writers_id + i, 0, NULL);
+
+        if (writers_threads[i] == NULL)
+        {
+            perror("CreateThread");
+            exit(1);
+        }
+    }
+
+    WaitForMultipleObjects(READERS_NUM, readers_threads, TRUE, INFINITE);
+    WaitForMultipleObjects(WRITERS_NUM, writers_threads, TRUE, INFINITE);
+
+    for (size_t i = 0; i < READERS_NUM; i++)
+    {
+        DWORD status = WaitForSingleObject(readers_threads[i], INFINITE);
+        printf("exit reader %d, status %d\n", i, status);
+    }
+
+    for (size_t i = 0; i < WRITERS_NUM; i++)
+    {
+        DWORD status = WaitForSingleObject(readers_threads[i], INFINITE);
+        printf("exit writer %d, status %d\n", i, status);
+    }
+
+    for (int i = 0; i < READERS_NUM; i++)
+    {
+        CloseHandle(readers_threads[i]);
+    }
+
+    for (int i = 0; i < WRITERS_NUM; i++)
+    {
+        CloseHandle(writers_threads[i]);
+    }
+
     CloseHandle(mutex);
-    
-    return EXIT_SUCCESS;
+    CloseHandle(can_write);
+    CloseHandle(can_read);
 }
