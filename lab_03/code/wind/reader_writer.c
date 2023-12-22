@@ -42,7 +42,7 @@ void start_read()
         WaitForSingleObject(can_read, INFINITE);
     }
     
-    WaitForSingleObject(mutex, INFINITE);
+    WaitForSingleObject(N, INFINITE);
     InterlockedDecrement(&waiting_readers);
     InterlockedIncrement(&active_readers);
     SetEvent(can_read);
