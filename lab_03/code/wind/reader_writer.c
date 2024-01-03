@@ -37,12 +37,12 @@ void sig_handler(int sig_num)
 void start_read()
 {
     InterlockedIncrement(&waiting_readers);
+
     if (active_writer || waiting_writers > 0)
     {
         WaitForSingleObject(can_read, INFINITE);
     }
     
-    WaitForSingleObject(N, INFINITE);
     InterlockedDecrement(&waiting_readers);
     InterlockedIncrement(&active_readers);
     SetEvent(can_read);
