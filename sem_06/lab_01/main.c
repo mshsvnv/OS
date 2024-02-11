@@ -1,13 +1,18 @@
 #include "apue.h"
+#include <time.h>
 
 typedef int Myfunc(const char *, const struct stat *, int);
+typedef int DoPath(Myfunc *);
 
 static Myfunc myfunc;
-static int myftw(char *, Myfunc *);
-static int dopath(Myfunc *);
-static void print_tree(const char* dirname, int indent);
+static int myftw(char *, Myfunc *, DoPath *);
 
-static long nreg, ndir, nblk, nchr, nfifo, nslink, nsock, ntot;
+static int dopath_no(Myfunc *);
+static int dopath_chdir(Myfunc *);
+void compare(char *);
+
+static char print = 1;
+static int level = 0;
 
 int main(int argc, char *argv[])
 {
@@ -15,18 +20,10 @@ int main(int argc, char *argv[])
     if (argc != 2)
         err_quit("Использование: ftw <начальный_каталог>");
     
-    ret = myftw(argv[1], myfunc); /* выполняет всю работу */
+    // ret = myftw(argv[1], myfunc, dopath_no); /* выполняет всю работу */
     
-    ntot = nreg + ndir + nblk + nchr + nfifo + nslink + nsock;
-    if (ntot == 0)
-        ntot = 1;/* во избежание деления на 0; вывести 0 для всех счетчиков */
-    printf("обычные файлы = %7ld, %5.2f %%\n", nreg, nreg*100.0/ntot);
-    printf("каталоги = %7ld, %5.2f %%\n", ndir, ndir*100.0/ntot);
-    printf("специальные файлы блочных устройств = %7ld, %5.2f %%\n", nblk, nblk*100.0/ntot);
-    printf("специальные файлы символьных устройств = %7ld, %5.2f %%\n", nchr, nchr*100.0/ntot);
-    printf("FIFO = %7ld, %5.2f %%\n", nfifo, nfifo*100.0/ntot);
-    printf("символические ссылки = %7ld, %5.2f %%\n", nslink, nslink*100.0/ntot);
-    printf("сокеты = %7ld, %5.2f %%\n", nsock, nsock*100.0/ntot);
+    compare(argv[1]);
+
     exit(ret);
 }
 /*
@@ -44,15 +41,18 @@ int main(int argc, char *argv[])
 /* невозможно получить с помощью stat */
 static char *fullpath; /* полный путь к каждому из файлов */
 /* возвращаем то, что вернула функция func() */
-static int myftw(char *pathname, Myfunc *func)
+static size_t path_len;
+static int myftw(char *pathname, Myfunc *func, DoPath *dopath)
 {
-    int len;
-    fullpath = path_alloc(&len); /* выделить память для PATH_MAX+1 байт */
-    /* (листинг 2.3) */
-    strncpy(fullpath, pathname, len); /* защита от */
-    fullpath[len - 1] = 0;
-    /* переполнения буфера */
-    return(dopath(func));
+    if (path_len <= strlen(pathname))
+    { 
+        path_len = strlen(pathname) * 2;
+        if ((fullpath = realloc(fullpath, path_len)) == NULL) 
+            err_sys("ошибка вызова realloc"); 
+    } 
+
+    strcpy(fullpath, pathname);
+    return(dopath(func)); 
 }
 /*
 * Обход дерева каталогов, начиная с "fullpath". Если "fullpath" не является
@@ -60,13 +60,13 @@ static int myftw(char *pathname, Myfunc *func)
 * Для каталогов производится рекурсивный вызов функции.
 */
 /* возвращаем то, что вернула функция func() */
-static int dopath(Myfunc* func)
+
+static int dopath_no(Myfunc* func)
 {
     struct stat statbuf;
     struct dirent *dirp;
     DIR *dp;
-    int ret;
-    char *ptr;
+    int ret, n;
 
     if (lstat(fullpath, &statbuf) < 0) /* ошибка вызова функции stat */
         return(func(fullpath, &statbuf, FTW_NS));
@@ -80,64 +80,151 @@ static int dopath(Myfunc* func)
     if ((ret = func(fullpath, &statbuf, FTW_D)) != 0)
         return(ret);
     
-    ptr = fullpath + strlen(fullpath); /* установить указатель */
-    /* в конец fullpath */
-    *ptr++ = '/';
-    *ptr = 0;
+    n = strlen(fullpath); /* установить указатель */
+
+    if (n + NAME_MAX + 2 > path_len)
+    {
+        /* увеличить размер буфера */ 
+        path_len *= 2;
+        if ((fullpath = realloc(fullpath, path_len)) == NULL)
+            err_sys("ошибка вызова realloc"); 
+    } 
+
+    fullpath[n++] = '/';
+    fullpath[n] = 0;
 
     if ((dp = opendir(fullpath)) == NULL) /* каталог недоступен */
         return(func(fullpath, &statbuf, FTW_DNR));
     
-    while ((dirp = readdir(dp)) != NULL) 
+    int stop = 1;
+    level++;
+    while ((dirp = readdir(dp)) != NULL && stop) 
     {
-        if (strcmp(dirp->d_name, ".") == 0 || strcmp(dirp->d_name, "..") == 0)
-            continue;
-        /* пропустить каталоги "." и ".." */
-        strcpy(ptr, dirp->d_name);
-        /* добавить имя после слэша */
-        if ((ret = dopath(func)) != 0) /* рекурсия */
-            break;
-        /* выход по ошибке */
+        if (!(strcmp(dirp->d_name, ".") == 0 || strcmp(dirp->d_name, "..") == 0))
+        {
+            strcpy(&fullpath[n], dirp->d_name);
+           
+            if ((ret = dopath_no(func)) != 0)
+                stop = 0;
+        }
     }
+    level--;
+    
+    fullpath[n - 1] = 0;
 
-    ptr[-1] = 0; /* стереть часть строки от слэша и до конца */
     if (closedir(dp) < 0)
-    err_ret("невозможно закрыть каталог %s", fullpath);
+        err_ret("невозможно закрыть каталог %s", fullpath);
+    return(ret);
+}
+
+static int dopath_chdir(Myfunc* func)
+{
+    struct stat statbuf;
+    struct dirent *dirp;
+    DIR *dp;
+    int ret, n;
+
+    if (lstat(fullpath, &statbuf) < 0) /* ошибка вызова функции stat */
+        return(func(fullpath, &statbuf, FTW_NS));
+
+    if (S_ISDIR(statbuf.st_mode) == 0) /* не каталог */
+        return(func(fullpath, &statbuf, FTW_F));
+    /*
+    * Это каталог. Сначала вызовем функцию func(),
+    * а затем обработаем все файлы в этом каталоге.
+    */
+    if ((ret = func(fullpath, &statbuf, FTW_D)) != 0)
+        return(ret);
+
+    if (chdir(fullpath) < 0) 
+        err_sys("не удалось изменить директорию"); 
+
+    fullpath[0] = '.';
+    fullpath[1] = '/';
+    fullpath[2] = 0;
+    
+    if ((dp = opendir(fullpath)) == NULL) /* каталог недоступен */
+        return(func(fullpath, &statbuf, FTW_DNR));
+    
+    int stop = 1;
+    level++;
+    while ((dirp = readdir(dp)) != NULL && stop) 
+    {
+        if (!(strcmp(dirp->d_name, ".") == 0 || strcmp(dirp->d_name, "..") == 0))
+        {
+            strcpy(&fullpath[2], dirp->d_name);
+           
+            if ((ret = dopath_chdir(func)) != 0)
+                stop = 0;
+        }
+    }
+    level--;
+    
+    chdir("..");
+
+    if (closedir(dp) < 0)
+        err_ret("невозможно закрыть каталог %s", fullpath);
+    
     return(ret);
 }
 
 static int myfunc(const char *pathname, const struct stat *statptr, int type)
 {
-    switch (type) {
-    case FTW_F:
-        switch (statptr->st_mode & S_IFMT) {
-            case S_IFREG: nreg++; break;
-            case S_IFBLK: nblk++; break;
-            case S_IFCHR: nchr++; break;
-            case S_IFIFO: nfifo++; break;
-            case S_IFLNK: nslink++; break;
-            case S_IFSOCK: nsock++; break;
-            case S_IFDIR:
-                err_dump("признак S_IFDIR для %s", pathname);
-                /* каталоги должны иметь тип = FTW_D */
-        }
-    break;
+    if (print) 
+    {    
+        if (type == FTW_F || type == FTW_D) 
+        {
+            const char *filename;
+            int i = 0;
 
-    case FTW_D:
-        ndir++;
-        break;
+            for (int i = 0; i < level; ++i)
+            {
+                if (i != level - 1)
+                    printf("│   ");
+                else
+                    printf("└───");
+            }
 
-    case FTW_DNR:
-        err_ret("закрыт доступ к каталогу %s", pathname);
-        break;
+            if (level > 0) 
+            {
+                filename = strrchr(pathname, '/') + 1;
+                printf("%s\n", filename);
+            } else 
+                printf("%s\n", pathname);
 
-    case FTW_NS:
-        err_ret("ошибка вызова функции stat для %s", pathname);
-        break;
-
-    default:
-        err_dump("неизвестный тип %d для файла %s", type, pathname);
+        } else if (type == FTW_DNR) 
+            err_ret("закрыт доступ к каталогу %s", pathname);
+        else if (type == FTW_NS)
+            err_ret("ошибка вызова функции stat для %s", pathname);
+        else
+            err_ret("неизвестный тип %d для файла %s", type, pathname);
     }
 
     return(0);
+}
+
+void compare(char *pathname) 
+{       
+    print = 0;
+
+    clock_t start, end;
+    double cpu_time_used;
+
+    int reps = 100;
+
+    start = clock();
+    for (int i = 0; i < reps; ++i) {}
+        myftw(pathname, myfunc, dopath_no);
+    end = clock();
+
+    cpu_time_used = ((double) (end - start)) / (reps * CLOCKS_PER_SEC);
+    printf("\nВремя обхода дерева каталогов без chdir: %f\n", cpu_time_used);
+
+    start = clock();
+    for (int i = 0; i < reps; ++i) {}
+        myftw(pathname, myfunc, dopath_chdir);
+    end = clock();
+
+    cpu_time_used = ((double) (end - start)) / (reps * CLOCKS_PER_SEC);
+    printf("Время обхода дерева каталогов с chdir: %f\n", cpu_time_used);
 }
