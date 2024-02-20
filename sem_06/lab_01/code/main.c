@@ -11,7 +11,8 @@ static int dopath_no(Myfunc *, int *);
 static int dopath_chdir(Myfunc *, int *);
 void compare(char *);
 
-static char print = 1;
+char print = 1;
+int amount_realloc = 0;
 
 int main(int argc, char *argv[])
 {
@@ -19,7 +20,9 @@ int main(int argc, char *argv[])
     if (argc != 2)
         err_quit("Использование: ftw <начальный_каталог>");
     
-    ret = myftw(argv[1], myfunc, dopath_no); 
+    ret = myftw(argv[1], myfunc, dopath_chdir); 
+
+    print = 0;
     
     compare(argv[1]);
 
@@ -73,6 +76,8 @@ static int dopath_no(Myfunc* func, int *level)
 
         if ((fullpath = realloc(fullpath, path_len)) == NULL)
             err_sys("ошибка вызова realloc"); 
+        
+        amount_realloc++;
     } 
 
     fullpath[n++] = '/';
@@ -99,6 +104,7 @@ static int dopath_no(Myfunc* func, int *level)
 
     if (closedir(dp) < 0)
         err_ret("невозможно закрыть каталог %s", fullpath);
+
     return(ret);
 }
 
@@ -117,16 +123,12 @@ static int dopath_chdir(Myfunc* func, int *level)
 
     if ((ret = func(fullpath, *level, FTW_D)) != 0)
         return(ret);
-
-    if (chdir(fullpath) < 0) 
-        err_sys("не удалось изменить директорию"); 
-
-    fullpath[0] = '.';
-    fullpath[1] = '/';
-    fullpath[2] = 0;
     
     if ((dp = opendir(fullpath)) == NULL) 
         return(func(fullpath, *level, FTW_DNR));
+
+    if (chdir(fullpath) < 0) 
+        err_sys("не удалось изменить директорию"); 
     
     int stop = 1;
     (*level)++;
@@ -134,7 +136,7 @@ static int dopath_chdir(Myfunc* func, int *level)
     {
         if (!(strcmp(dirp->d_name, ".") == 0 || strcmp(dirp->d_name, "..") == 0))
         {
-            strcpy(&fullpath[2], dirp->d_name);
+            strcpy(&fullpath[0], dirp->d_name);
            
             if ((ret = dopath_chdir(func, level)) != 0)
                 stop = 0;
@@ -166,11 +168,15 @@ static int myfunc(const char *pathname, int level, int type)
                 else
                     printf("└───");
             }
-
+            
             if (level > 0) 
             {
-                filename = strrchr(pathname, '/') + 1;
-                printf("%s\n", filename);
+                filename = strrchr(pathname, '/');
+
+                if (filename != NULL)
+                    printf("%s\n", filename + 1);
+                else
+                    printf("%s\n", pathname);
             } else 
                 printf("%s\n", pathname);
 
@@ -214,6 +220,7 @@ void compare(char *pathname)
 
     cpu_time_used = ((double) (end - start)) / reps;
     printf("\nВремя обхода дерева каталогов без chdir: %f\n", cpu_time_used);
+    // printf("Колиество срабатываний realloc: %d\n\n", amount_realloc);
 
     start = getThreadCpuTimeNs();
     for (int i = 0; i < reps; ++i) {}
