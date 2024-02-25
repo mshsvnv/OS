@@ -5,7 +5,8 @@ typedef int Myfunc(const char *, int, int);
 typedef int DoPath(Myfunc *, int *);
 
 static Myfunc myfunc;
-static int myftw(char *, Myfunc *, DoPath *);
+static int myftw_no(char *, Myfunc *, DoPath *);
+static int myftw_chdir(char *, Myfunc *, DoPath *);
 
 static int dopath_no(Myfunc *, int *);
 static int dopath_chdir(Myfunc *, int *);
@@ -20,10 +21,8 @@ int main(int argc, char *argv[])
     if (argc != 2)
         err_quit("Использование: ftw <начальный_каталог>");
     
-    ret = myftw(argv[1], myfunc, dopath_chdir); 
+    ret = myftw_chdir(argv[1], myfunc, dopath_chdir); 
 
-    print = 0;
-    
     compare(argv[1]);
 
     exit(ret);
@@ -37,16 +36,25 @@ int main(int argc, char *argv[])
 static char *fullpath; 
 static size_t path_len;
 
-static int myftw(char *pathname, Myfunc *func, DoPath *dopath)
+static int myftw_no(char *pathname, Myfunc *func, DoPath *dopath)
 {
-    if (path_len <= strlen(pathname))
-    { 
-        path_len = strlen(pathname) * 2;
-        if ((fullpath = realloc(fullpath, path_len)) == NULL) 
-            err_sys("ошибка вызова realloc"); 
-    } 
+    int len = PATH_MAX + 1;
+    fullpath = path_alloc(&len);
 
     strcpy(fullpath, pathname);
+    fullpath[len - 1] = 0;
+
+    int level = 0;
+    return(dopath(func, &level)); 
+}
+
+static int myftw_chdir(char *pathname, Myfunc *func, DoPath *dopath)
+{
+    int len = PATH_MAX + 1;
+    fullpath = path_alloc(&len);
+
+    strcpy(fullpath, pathname);
+    fullpath[len - 1] = 0;
 
     int level = 0;
     return(dopath(func, &level)); 
@@ -70,15 +78,15 @@ static int dopath_no(Myfunc* func, int *level)
     
     n = strlen(fullpath); 
 
-    if (n + NAME_MAX + 2 > path_len)
-    {
-        path_len *= 2;
+    // if (n + NAME_MAX + 2 > path_len)
+    // {
+    //     path_len *= 2;
 
-        if ((fullpath = realloc(fullpath, path_len)) == NULL)
-            err_sys("ошибка вызова realloc"); 
+    //     if ((fullpath = realloc(fullpath, path_len)) == NULL)
+    //         err_sys("ошибка вызова realloc"); 
         
-        amount_realloc++;
-    } 
+    //     // amount_realloc++;
+    // } 
 
     fullpath[n++] = '/';
     fullpath[n] = 0;
@@ -208,25 +216,20 @@ void compare(char *pathname)
 {       
     print = 0;
 
-    long long start, end;
+    int start, end;
     double cpu_time_used;
 
-    int reps = 100;
+    start = clock();
+    myftw_no(pathname, myfunc, dopath_no);
+    end = clock();
 
-    start = getThreadCpuTimeNs();
-    for (int i = 0; i < reps; ++i) {}
-        myftw(pathname, myfunc, dopath_no);
-    end = getThreadCpuTimeNs();
-
-    cpu_time_used = ((double) (end - start)) / reps;
+    cpu_time_used = (double) (end - start) / CLOCKS_PER_SEC;
     printf("\nВремя обхода дерева каталогов без chdir: %f\n", cpu_time_used);
-    // printf("Колиество срабатываний realloc: %d\n\n", amount_realloc);
 
-    start = getThreadCpuTimeNs();
-    for (int i = 0; i < reps; ++i) {}
-        myftw(pathname, myfunc, dopath_chdir);
-    end = getThreadCpuTimeNs();
+    start = clock();
+    myftw_chdir(pathname, myfunc, dopath_chdir);
+    end = clock();
 
-    cpu_time_used = ((double) (end - start)) / reps;
+    cpu_time_used = (double) (end - start) / CLOCKS_PER_SEC;
     printf("Время обхода дерева каталогов с chdir: %f\n", cpu_time_used);
 }
