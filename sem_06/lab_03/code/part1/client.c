@@ -11,30 +11,30 @@
 
 int main(int argc, char ** argv)
 {
-    int sock;
-    sock = socket(AF_UNIX, SOCK_DGRAM, 0);
+    int sock_fd;
+    sock_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     char buf[BUF_SIZE];
-    struct sockaddr srvr_name;
+    struct sockaddr srvr_addr;
 
-    if (sock < 0) 
+    if (sock_fd < 0) 
     {
         perror("socket failed");
         exit(1);
     }
 
-    srvr_name.sa_family = AF_UNIX;
-    strcpy(srvr_name.sa_data, SOCK_NAME);
+    srvr_addr.sa_family = AF_UNIX;
+    strcpy(srvr_addr.sa_data, SOCK_NAME);
 
     int pid = getpid();
     sprintf(buf, "client PID: %d", pid);
 
-    if (sendto(sock, buf, strlen(buf), 0, &srvr_name, strlen(srvr_name.sa_data) + sizeof(srvr_name.sa_family)) < 0)
+    if (sendto(sock_fd, buf, strlen(buf), 0, &srvr_addr, sizeof(srvr_addr)) < 0)
     {
         perror("Can't sendto");
         exit(1);
     }
 
-    close(sock);
+    close(sock_fd);
     
     return 0;
 }

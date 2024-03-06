@@ -10,58 +10,58 @@
 #define SOCK_NAME "socket.soc"
 #define BUF_SIZE 256
 
-int sock;
+int sock_fd;
 
 void sig_handler()
 {
-    close(sock);
+    close(sock_fd);
     unlink(SOCK_NAME);
     exit(0);
 }
 
 int main(int argc, char **argv)
 {
-    struct sockaddr srvr_name, rcvr_name;
+    struct sockaddr srvr_addr, cln_addr;
     char buf[BUF_SIZE];
     int namelen, bytes;
 
-    namelen = sizeof(rcvr_name);
-
-    sock = socket(AF_UNIX, SOCK_DGRAM, 0);
+    sock_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     
-    if (sock < 0) 
+    if (sock_fd < 0) 
     {
         perror("socket failed");
         exit(1);
     }
 
-    srvr_name.sa_family = AF_UNIX;
-    strcpy(srvr_name.sa_data, SOCK_NAME);
+    srvr_addr.sa_family = AF_UNIX;
+    strcpy(srvr_addr.sa_data, SOCK_NAME);
 
-    if (bind(sock, &srvr_name, sizeof(srvr_name)) < 0) 
+    if (bind(sock_fd, &srvr_addr, sizeof(srvr_addr)) < 0) 
     {
         perror("bind failed");
         exit(1);
     }
 
-    if (signal(SIGINT, sig_handler) == SIG_ERR)
-    {
-        perror("Can't signal");
-        exit(1);
+    struct sigaction sa;
+
+    sa.sa_handler = sig_handler;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+
+    if (sigaction(SIGINT, &sa, NULL) == -1) {
+        perror("sigaction");
+        return 1;
     }
 
     for (;;)
     {
-        bytes = recvfrom(sock, buf, sizeof(buf), 0, &rcvr_name, &namelen);
+        bytes = recvfrom(sock_fd, buf, sizeof(buf), 0, &cln_addr, &namelen);
         
         if (bytes < 0) 
         {
             perror("recvfrom failed");
             exit(1);
         }
-
-        buf[bytes] = 0;
-        rcvr_name.sa_data[namelen] = 0;
 
         printf("client to server: %s\n", buf);
 
@@ -70,7 +70,7 @@ int main(int argc, char **argv)
 
         sleep(2);
 
-        if (sendto(sock, send, sizeof(send), 0, &rcvr_name, namelen) < 0)
+        if (sendto(sock_fd, send, sizeof(send), 0, &cln_addr, namelen) < 0)
         {
             perror("Can't sendto");
             exit(1);
