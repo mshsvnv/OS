@@ -1,0 +1,1 @@
+pmap -d $1 > ./pagemap_lab_0"$2".txt
